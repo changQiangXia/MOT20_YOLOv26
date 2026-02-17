@@ -1,0 +1,65 @@
+# SAHI (Slicing Aided Hyper Inference) 配置
+# 针对 MOT20 高分辨率密集场景的切片推理配置
+
+sahi:
+  # 切片策略
+  slice:
+    # 切片尺寸 (必须能被32整除)
+    slice_height: 640         # 切片高度
+    slice_width: 640          # 切片宽度
+    
+    # 重叠率 (0.0-1.0)
+    overlap_height_ratio: 0.2   # 高度方向重叠率 (20%)
+    overlap_width_ratio: 0.2    # 宽度方向重叠率 (20%)
+    
+    # 高级切片选项
+    auto_slice: true          # 自动计算最佳切片尺寸
+    min_slice_size: 320       # 最小切片尺寸
+    max_slice_size: 1280      # 最大切片尺寸
+    
+  # 批处理配置 (显存优化)
+  batch:
+    enabled: true
+    batch_size: 4             # 切片批处理大小
+    
+  # 合并策略
+  merge:
+    # NMS合并参数
+    nms_threshold: 0.5        # 切片间NMS阈值
+    match_threshold: 0.5      # 框匹配阈值
+    
+    # 置信度融合策略: "avg", "max", "weighted"
+    score_fusion: "weighted"
+    
+    # 坐标后处理: "weighted_avg", "greedy", "soft_nms"
+    box_fusion: "weighted_avg"
+    
+  # 动态切片策略 (根据图像内容)
+  adaptive:
+    enabled: true
+    # 若检测到目标密度 > threshold，启用更细粒度切片
+    density_threshold: 0.3    # 目标覆盖面积比例
+    fine_slice_ratio: 0.5     # 精细切片尺寸比例
+    
+  # 性能优化
+  optimization:
+    # 跳过无目标区域检测
+    skip_empty_slices: false
+    
+    # 使用多进程处理切片
+    multiprocess: true
+    num_workers: 4
+    
+    # 缓存切片结果
+    cache_slices: false
+
+# 与检测器联动配置
+integration:
+  # 是否对原始大图也进行检测
+  detect_original: true
+  original_scale: 1.0       # 原始图缩放比例
+  
+  # 切片结果与原始图结果融合
+  merge_with_original: true
+  original_result_weight: 0.6   # 原始图结果权重
+  slice_result_weight: 0.4      # 切片结果权重

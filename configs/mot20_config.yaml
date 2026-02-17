@@ -1,0 +1,100 @@
+# MOT20 数据集配置
+# 数据集路径和评估配置
+
+dataset:
+  name: "MOT20"
+  root: "./data/MOT20"  # 项目内数据集路径
+  
+  # 数据格式
+  format: "MOTChallenge"      # MOTChallenge / YOLO / COCO
+  
+  # 序列列表
+  train_sequences:
+    - "MOT20-01"
+    - "MOT20-02"
+    - "MOT20-03"
+    - "MOT20-05"
+    
+  test_sequences:
+    - "MOT20-04"
+    - "MOT20-06"
+    - "MOT20-07"
+    - "MOT20-08"
+  
+  # 帧率
+  fps: 25
+  
+  # 图像尺寸 (不同序列可能不同)
+  image_size:
+    width: 1920
+    height: 1080
+    
+  # 类别映射 (MOT20只有行人)
+  class_map:
+    1: "person"               # MOT20中行人label为1
+
+# 数据转换配置 (MOT20 -> YOLO)
+conversion:
+  # 输出目录
+  output_dir: "./data/MOT20_YOLO"
+  
+  # 是否生成训练/验证划分
+  split:
+    enabled: true
+    train_ratio: 0.8
+    val_ratio: 0.2
+    seed: 42
+    
+  # 图像预处理
+  preprocessing:
+    # 是否调整图像大小
+    resize: false
+    target_size: [1080, 1920]
+    
+    # 归一化
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# 评估配置
+evaluation:
+  # 评估指标
+  metrics:
+    - "MOTA"                  # Multiple Object Tracking Accuracy
+    - "IDF1"                  # ID F1 Score
+    - "MOTP"                  # Multiple Object Tracking Precision
+    - "FP"                    # False Positives
+    - "FN"                    # False Negatives
+    - "IDSW"                  # ID Switches
+    - "Frag"                  # Fragments
+    - "MT"                    # Mostly Tracked
+    - "ML"                    # Mostly Lost
+    
+  # 评估阈值
+  iou_threshold: 0.5          # 成功跟踪的IoU阈值
+  
+  # 输出格式
+  output_format: "MOTChallenge"  # 评估结果输出格式
+  
+  # 可视化
+  visualization:
+    enabled: true
+    show_trajectory: true     # 显示轨迹
+    show_id: true             # 显示ID
+    show_confidence: false    # 显示置信度
+    line_thickness: 2
+    font_scale: 0.6
+
+# 路径配置
+paths:
+  # 原始数据路径
+  train_dir: "./data/MOT20/train"
+  test_dir: "./data/MOT20/test"
+  
+  # 标注文件
+  gt_dir: "./data/MOT20/train"  # gt.txt所在目录
+  
+  # 输出路径
+  results_dir: "./results"
+  weights_dir: "./weights"
+  logs_dir: "./logs"

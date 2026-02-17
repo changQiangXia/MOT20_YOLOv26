@@ -1,0 +1,62 @@
+# MOT20 YOLOv26 - 优化配置（提升MOTA/IDF1）
+
+# ========== 检测器配置（降低FP）==========
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.35          # 提高置信度阈值，减少假阳性
+  iou_thres: 0.4            # 更严格的NMS
+  max_det: 800              # 限制最大检测数
+  img_size: 1280            # 稍微降低分辨率，加快速度
+  nms_free: true
+  half_precision: true
+
+# ========== ReID配置（使用ResNet50，平衡效果）==========
+reid:
+  model_type: "resnet50"
+  model_path: ""
+  feature_dim: 2048
+  batch_size: 64
+  half_precision: true
+
+# ========== 跟踪器配置（平衡FP/FN/IDSW）==========
+tracker:
+  max_age: 50               # 延长轨迹寿命，减少漏检
+  min_hits: 2               # 更快确认轨迹
+  iou_threshold: 0.25       # 稍微降低IoU阈值，更宽松匹配
+  appearance_threshold: 0.2 # 更严格的外观匹配，减少ID切换
+  w_iou: 0.4                # 提高IoU权重
+  w_appearance: 0.4         # 平衡外观权重
+  w_motion: 0.2             # 降低运动权重（MOT20拥挤场景运动不稳定）
+  use_observation_centroid: true
+
+# ========== SAHI配置（小切片检测更多目标）==========
+sahi:
+  enabled: true
+  slice_height: 640         # 小切片，检测更多小目标
+  slice_width: 640
+  overlap_height_ratio: 0.25  # 增加重叠，减少边界漏检
+  overlap_width_ratio: 0.25
+  batch_size: 16
+  merge_iou_threshold: 0.5
+  score_fusion: "weighted"
+  box_fusion: "weighted_avg"
+
+# ========== 数据配置 ==========
+data:
+  root: "./data/MOT20"
+  yaml_path: "data/MOT20_YOLO/data.yaml"
+  format: "MOTChallenge"
+
+# ========== 输出配置 ==========
+output:
+  project: "runs/track"
+  name: "exp"
+  save_video: true
+  save_vis: false
+
+# ========== 性能配置 ==========
+performance:
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 2

@@ -1,0 +1,56 @@
+# MOT20 YOLOv26 - 高精度配置（追求最佳MOTA/IDF1）
+
+# ========== 检测器配置（高精度）==========
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.3           # 适中阈值，平衡精度和召回
+  iou_thres: 0.45           # 标准NMS
+  max_det: 1500             # 增加最大检测数（MOT20密集场景）
+  img_size: 1920            # 原始分辨率，最佳精度
+  nms_free: true
+  half_precision: true
+
+# ========== ReID配置（使用OSNet）==========
+reid:
+  model_type: "osnet"
+  model_path: "weights/osnet_x1_0_msmt17_combineall_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip_jitter.pth"
+  feature_dim: 512
+  batch_size: 32
+  half_precision: true
+
+# ========== 跟踪器配置（减少ID切换）==========
+tracker:
+  max_age: 60               # 更长寿命，抗遮挡
+  min_hits: 3               # 标准确认次数
+  iou_threshold: 0.2        # 宽松IoU，提高召回
+  appearance_threshold: 0.15 # 更严格外观匹配
+  w_iou: 0.3
+  w_appearance: 0.6         # 提高外观权重，减少IDSW
+  w_motion: 0.1             # 降低运动权重
+  use_observation_centroid: true
+
+# ========== SAHI配置（细粒度切片）==========
+sahi:
+  enabled: true
+  slice_height: 480         # 更细切片，检测小目标
+  slice_width: 480
+  overlap_height_ratio: 0.3 # 更多重叠
+  overlap_width_ratio: 0.3
+  batch_size: 16
+  merge_iou_threshold: 0.5
+  score_fusion: "weighted"
+  box_fusion: "weighted_avg"
+
+# ========== 数据配置 ==========
+data:
+  root: "./data/MOT20"
+  yaml_path: "data/MOT20_YOLO/data.yaml"
+  format: "MOTChallenge"
+
+# ========== 输出配置 ==========
+output:
+  project: "runs/track"
+  name: "exp"
+  save_video: true
+  save_vis: false

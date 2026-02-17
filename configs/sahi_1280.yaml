@@ -1,0 +1,64 @@
+# MOT20 YOLOv26 - SAHI 1280配置
+# 增大切片减少数量，平衡精度和速度
+
+# ========== 检测器配置 ==========
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25
+  iou_thres: 0.45
+  max_det: 1000
+  img_size: 1280
+  nms_free: true
+  half_precision: true
+
+# ========== ReID配置 ==========
+reid:
+  model_type: "fastreid"
+  model_path: "weights/fastreid_mot20.pth"
+  device: "cuda:0"
+  feature_dim: 128
+  batch_size: 64
+  half_precision: true
+
+# ========== 跟踪器配置 ==========
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.25
+  w_iou: 0.3
+  w_appearance: 0.5
+  w_motion: 0.2
+  use_observation_centroid: true
+
+# ========== SAHI配置 (关键: 1280大切片) ==========
+sahi:
+  enabled: true
+  slice_height: 1280      # 大切片，减少数量
+  slice_width: 1280
+  overlap_height_ratio: 0.2
+  overlap_width_ratio: 0.2
+  batch_size: 4           # 块数少了，batch可以小
+  merge_iou_threshold: 0.5
+  score_fusion: "weighted"
+  box_fusion: "weighted_avg"
+
+# ========== 数据配置 ==========
+data:
+  root: "./data/MOT20"
+  yaml_path: "data/MOT20_YOLO/data.yaml"
+  format: "MOTChallenge"
+
+# ========== 输出配置 ==========
+output:
+  project: "runs/track"
+  name: "exp"
+  save_video: true
+  save_vis: false
+
+# ========== 性能配置 ==========
+performance:
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 2

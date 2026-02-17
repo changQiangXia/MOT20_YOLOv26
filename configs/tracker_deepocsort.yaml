@@ -1,0 +1,99 @@
+# DeepOCSORT 跟踪器配置
+# 针对 MOT20 长期遮挡和ID切换问题的优化配置
+
+tracker:
+  type: "DeepOCSORT"
+  
+  # ========== 运动模型 (Kalman Filter) ==========
+  motion:
+    # 状态空间: [x, y, a, h, vx, vy, va, vh]
+    # x,y: 中心坐标, a: 宽高比, h: 高度
+    
+    # 过程噪声协方差
+    q_cov: 0.05
+    
+    # 观测噪声协方差
+    r_cov: 0.1
+    
+    # 最大预测年龄 (超过此值未匹配则删除)
+    max_age: 30
+    
+    # 最小连续匹配次数 (确认为跟踪目标)
+    min_hits: 3
+    
+    # 删除阈值
+    deletion_threshold: 0.3
+    
+  # ========== 外观模型 (ReID) ==========
+  appearance:
+    # 特征提取器配置
+    model:
+      name: "FastReID"        # FastReID / OSNet / Bot
+      backbone: "resnet50"
+      pretrained: true
+      weights_path: "weights/fastreid_mot20.pth"
+      
+    # 特征维度
+    feat_dim: 128
+    
+    # 特征更新策略
+    momentum: 0.9             # 特征库动量更新系数
+    max_features: 100         # 每个轨迹最大保存特征数
+    
+    # 相似度度量
+    metric: "cosine"          # cosine / euclidean
+    appearance_threshold: 0.25  # 外观匹配阈值 (越小越严格)
+    
+  # ========== OCSORT 核心参数 ==========
+  ocsort:
+    # 观测中心动量 (OCSORT核心创新)
+    use_observation_centroid: true
+    velocity_thres: 10.0      # 速度异常阈值
+    
+    # 二次匹配策略
+    use_second_matching: true
+    second_matching_threshold: 0.5
+    
+    # 虚拟轨迹 (处理遮挡)
+    use_virtual_tracks: true
+    virtual_track_iou_threshold: 0.3
+    
+  # ========== 关联代价矩阵 ==========
+  association:
+    # 代价权重
+    w_iou: 0.3              # IoU代价权重
+    w_appearance: 0.5       # 外观代价权重
+    w_motion: 0.2           # 运动代价权重
+    
+    # 门控阈值 (超过此值不考虑匹配)
+    max_iou_distance: 0.7
+    max_appearance_distance: 0.4
+    max_motion_distance: 10.0
+    
+    # 级联匹配深度
+    cascade_depth: 1
+    
+  # ========== 遮挡处理 ==========
+  occlusion:
+    # 遮挡检测
+    enable_occlusion_handling: true
+    occlusion_iou_threshold: 0.5  # 超过此IoU认为遮挡
+    
+    # 遮挡时延长寿命
+    occlusion_max_age_multiplier: 2.0
+    
+    # 遮挡恢复策略
+    recovery_strategy: "appearance_first"  # appearance_first / iou_first
+    
+  # ========== 输出后处理 ==========
+  output:
+    # 边界框平滑
+    smoothing: true
+    smoothing_alpha: 0.7
+    
+    # 低置信度过滤
+    min_confidence: 0.3
+    
+    # 最小框尺寸 (过滤误检)
+    min_box_area: 100
+    min_box_height: 20

@@ -1,0 +1,63 @@
+# MOT20 YOLOv26 + SAHI + DeepOCSORT 默认跟踪配置
+
+# ========== 检测器配置 ==========
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25          # 密集场景适当降低
+  iou_thres: 0.45
+  max_det: 1000             # 密集场景需要大数值
+  img_size: 1280
+  nms_free: true            # 启用NMS-Free
+  half_precision: true      # FP16加速
+
+# ========== ReID配置 ==========
+reid:
+  model_type: "fastreid"
+  model_path: "weights/fastreid_mot20.pth"
+  device: "cuda:0"
+  feature_dim: 128
+  batch_size: 32
+  half_precision: true
+
+# ========== 跟踪器配置 ==========
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.25
+  w_iou: 0.3                # IoU代价权重
+  w_appearance: 0.5         # 外观代价权重
+  w_motion: 0.2             # 运动代价权重
+  use_observation_centroid: true  # OCSORT核心特性
+
+# ========== SAHI配置 ==========
+sahi:
+  enabled: true             # 是否启用SAHI
+  slice_height: 640
+  slice_width: 640
+  overlap_height_ratio: 0.2
+  overlap_width_ratio: 0.2
+  batch_size: 4             # 切片批处理大小
+  merge_iou_threshold: 0.5
+  score_fusion: "weighted"
+  box_fusion: "weighted_avg"
+
+# ========== 数据配置 ==========
+data:
+  root: "./data/MOT20"  # 项目内数据集路径
+  yaml_path: "data/MOT20_YOLO/data.yaml"
+  format: "MOTChallenge"
+
+# ========== 输出配置 ==========
+output:
+  project: "runs/track"
+  name: "exp"
+  save_video: true
+  save_vis: false
+
+# ========== 性能配置 ==========
+performance:
+  num_workers: 8
+  pin_memory: true
+  prefetch_factor: 2

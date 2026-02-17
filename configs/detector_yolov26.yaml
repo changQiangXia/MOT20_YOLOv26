@@ -1,0 +1,81 @@
+# YOLOv26 检测器配置
+# 针对 MOT20 密集场景优化的检测器配置
+
+model:
+  # 模型架构
+  type: "YOLOv26"  # NMS-Free端到端检测器
+  variant: "x"     # n/s/m/l/x 可选，x为最大模型
+  
+  # NMS-Free 核心参数
+  nms_free: true            # 启用端到端去NMS
+  conf_thres: 0.25          # 置信度阈值 (密集场景适当降低)
+  iou_thres: 0.45           # NMS IoU阈值 (NMS-Free模式下备用)
+  max_det: 1000             # 单帧最大检测数 (MOT20密集场景需要大数值)
+  
+  # 小目标检测优化 (STAL - Small Target Aware Loss)
+  small_target:
+    enable: true
+    stride_threshold: 16    # 小于此stride的特征图启用小目标优化
+    loss_weight: 2.0        # 小目标损失权重
+    anchor_scale: 0.5       # 小目标锚框缩放因子
+  
+  # ProgLoss 渐进式损失
+  prog_loss:
+    enable: true
+    warmup_epochs: 5        # 预热轮数
+    schedule: "linear"      # linear/cosine/step
+
+# 输入配置
+input:
+  # SAHI相关参数 (会在sahi_engine中覆盖)
+  base_size: 1280           # 基础输入尺寸
+  stride: 64                # 输入尺寸需为此值的倍数
+  
+  # 数据增强
+  augmentation:
+    hsv_h: 0.015            # HSV色域变换
+    hsv_s: 0.7
+    hsv_v: 0.4
+    degrees: 0.0            # 旋转 (MOT20场景通常不旋转)
+    translate: 0.1          # 平移
+    scale: 0.5              # 缩放 (小目标检测需要大范围)
+    shear: 0.0
+    perspective: 0.0
+    flipud: 0.0             # 垂直翻转概率
+    fliplr: 0.5             # 水平翻转概率
+    mosaic: 1.0             # Mosaic增强概率
+    mixup: 0.1              # MixUp增强概率
+    copy_paste: 0.1         # Copy-Paste (有助于密集场景)
+
+# 训练配置
+training:
+  epochs: 100
+  batch_size: 8             # 24GB显存下YOLOv26-X的安全批次
+  workers: 8
+  
+  # 优化器
+  optimizer: "AdamW"
+  lr0: 0.001                # 初始学习率
+  lrf: 0.01                 # 最终学习率 = lr0 * lrf
+  momentum: 0.937
+  weight_decay: 0.0005
+  
+  # 学习率调度
+  lr_scheduler: "cosine"
+  warmup_epochs: 3
+  warmup_momentum: 0.8
+  
+  # 显存优化
+  amp: true                 # 自动混合精度
+  gradient_accumulation: 2  # 梯度累积步数
+  
+  # 预训练权重
+  pretrained: true
+  weights_path: "yolov26x.pt"
+
+# 类别配置 (MOT20只关注行人)
+nc: 1                       # 类别数
+names: ["person"]
+
+# 设备配置
+device: "cuda:0"            # 自动检测，可设为 "cpu" 或具体GPU
