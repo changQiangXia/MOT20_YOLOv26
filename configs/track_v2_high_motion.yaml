@@ -1,0 +1,27 @@
+# Tracker V2: 提高运动权重，依赖轨迹连续性
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25
+  iou_thres: 0.45
+  img_size: 1280
+
+reid:
+  model_type: "resnet50"
+  model_path: ""
+  feature_dim: 128
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.35
+  w_iou: 0.5                   # 【提高】运动/位置信息更可靠
+  w_appearance: 0.3            # 【降低】减少外观误匹配
+  w_motion: 0.2
+
+sahi:
+  enabled: false

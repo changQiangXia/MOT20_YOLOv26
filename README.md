@@ -386,20 +386,20 @@ self.reducer = nn.Linear(2048, self.feature_dim)  # 降维到 128
 
 ### 最终推荐配置
 
-**文件：** `configs/no_sahi.yaml`
+**文件：** `configs/best_final.yaml`
 
 ```yaml
 detector:
   model_path: "weights/yolov26x.pt"
   device: "cuda:0"
-  conf_thres: 0.25    # 适中阈值
+  conf_thres: 0.25
   iou_thres: 0.45
-  img_size: 1280      # 平衡分辨率
+  img_size: 1280          # 最佳分辨率
 
 reid:
   model_type: "resnet50"
-  model_path: ""      # 空路径触发 Fallback（带降维层）
-  feature_dim: 128    # 与 DeepOCSORT 对齐
+  model_path: ""          # 使用带降维层的 FallbackReIDExtractor
+  feature_dim: 128
   device: "cuda:0"
   batch_size: 64
   half_precision: true
@@ -408,14 +408,28 @@ tracker:
   max_age: 30
   min_hits: 3
   iou_threshold: 0.3
-  appearance_threshold: 0.4
-  w_iou: 0.3
-  w_appearance: 0.5
+  # 【关键优化】提高运动权重，降低外观权重
+  appearance_threshold: 0.35   # 适中阈值
+  w_iou: 0.5                   # 运动/位置信息更可靠
+  w_appearance: 0.3            # 降低外观依赖（密集场景外观易混淆）
   w_motion: 0.2
 
 sahi:
-  enabled: false      # ❌ 禁用 SAHI 是关键！
+  enabled: false              # 禁用 SAHI 是关键
 ```
+
+**实测性能**：MOT20-01 上 MOTA **29.55%**，IDF1 **31.76%**，FP 4754
+
+### Tracker 参数调优对比
+
+| 配置 | MOTA | IDF1 | FP | IDSW | 关键参数 |
+|------|------|------|----|------|----------|
+| 基准 | 28.46% | 31.06% | 4987 | 347 | w_iou=0.3, w_app=0.5 |
+| V1 低外观 | 28.32% | 30.46% | 5003 | 357 | app_thres=0.25 |
+| **V2 高运动 ✅** | **29.55%** | **31.76%** | **4754** | **299** | **w_iou=0.5, w_app=0.3** |
+| V3 平衡 | 28.83% | 31.12% | 4897 | 333 | w_iou=0.4, w_app=0.4 |
+
+**结论**：在 MOT20 密集场景中，运动轨迹比外观特征更可靠。提高 IoU 权重、降低外观权重带来全面提升。
 
 ### 反思与教训
 
@@ -429,6 +443,7 @@ sahi:
    - 类别过滤：+18% MOTA
    - ReID 降维：稳定特征匹配
    - 禁用 SAHI：避免 FP 爆炸
+   - Tracker 调优（提高运动权重）：再 +1% MOTA
 
 ### 仍未解决的问题
 

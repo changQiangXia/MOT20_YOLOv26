@@ -1,0 +1,27 @@
+# Tracker V3: 平衡配置，中庸之道
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25
+  iou_thres: 0.45
+  img_size: 1280
+
+reid:
+  model_type: "resnet50"
+  model_path: ""
+  feature_dim: 128
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.3    # 【适中】
+  w_iou: 0.4                   # 【适中】
+  w_appearance: 0.4            # 【适中】
+  w_motion: 0.2
+
+sahi:
+  enabled: false

@@ -1,0 +1,30 @@
+# 最终推荐配置 - 经过系统化调优
+# MOT20-01 实测: MOTA 29.55%, IDF1 31.76%
+
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25
+  iou_thres: 0.45
+  img_size: 1280          # 最佳分辨率
+
+reid:
+  model_type: "resnet50"
+  model_path: ""          # 使用带降维层的 FallbackReIDExtractor
+  feature_dim: 128
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  # 【关键优化】提高运动权重，降低外观权重
+  appearance_threshold: 0.35   # 适中阈值
+  w_iou: 0.5                   # 运动/位置信息更可靠
+  w_appearance: 0.3            # 降低外观依赖（密集场景外观易混淆）
+  w_motion: 0.2
+
+sahi:
+  enabled: false              # 禁用 SAHI 是关键
