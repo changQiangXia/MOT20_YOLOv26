@@ -30,6 +30,7 @@ class FastSAHI:
         overlap_ratio: float = 0.2,
         conf_thres: float = 0.25,
         iou_thres: float = 0.5,
+        imgsz: int = 640,  # 【修复】添加 imgsz 参数
     ):
         self.model = model
         self.device = device
@@ -38,6 +39,7 @@ class FastSAHI:
         self.overlap = overlap_ratio
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
+        self.imgsz = imgsz  # 【修复】保存 imgsz
         
         # 计算步长
         self.step_h = int(slice_height * (1 - overlap_ratio))
@@ -79,24 +81,10 @@ class FastSAHI:
         
         return slices, offsets
     
-    def preprocess(self, slices: List[np.ndarray]) -> torch.Tensor:
-        """预处理并堆叠成batch"""
-        tensors = []
-        for img in slices:
-            # BGR -> RGB
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            # Resize to model input size
-            img = cv2.resize(img, (640, 640))
-            # HWC -> CHW
-            img = np.transpose(img, (2, 0, 1))
-            # Normalize
-            img = img.astype(np.float32) / 255.0
-            # To tensor
-            tensor = torch.from_numpy(img).unsqueeze(0)
-            tensors.append(tensor)
-        
-        # Stack: (B, 3, 640, 640)
-        return torch.cat(tensors, dim=0).to(self.device)
+    # 【修复】移除此方法 - Ultralytics 自身的预处理更高效，无需手动预处理
+    # def preprocess(self, slices: List[np.ndarray]) -> torch.Tensor:
+    #     """预处理并堆叠成batch"""
+    #     ...
     
     @torch.no_grad()
     def detect(self, image: np.ndarray) -> np.ndarray:
@@ -109,15 +97,13 @@ class FastSAHI:
         if not slices:
             return np.zeros((0, 6))
         
-        # 2. 预处理成batch
-        batch_input = self.preprocess(slices)
-        
-        # 3. 使用Ultralytics批量推理
-        # Ultralytics支持列表输入
+        # 【修复】移除无用的手动预处理，直接传递切片列表给 Ultralytics
+        # Ultralytics 自身的 C++/PyTorch 混合预处理管线更高效
         results = self.model.predict(
-            [slices[i] for i in range(len(slices))],  # 传列表
+            slices,  # 直接传列表
             conf=self.conf_thres,
             iou=self.iou_thres,
+            imgsz=self.imgsz,  # 【修复】强制使用配置的图像尺寸
             verbose=False,
             stream=False,
         )
@@ -165,7 +151,7 @@ class FastSAHI:
         return detections
     
     def nms(self, boxes: np.ndarray, scores: np.ndarray, iou_thres: float) -> List[int]:
-        """NMS"""
+        """标准 NMS（硬删除）- 稳定可靠"""
         indices = np.argsort(scores)[::-1]
         keep = []
         

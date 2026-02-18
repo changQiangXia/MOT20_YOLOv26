@@ -1,0 +1,30 @@
+# SAHI 平衡模式 - 推荐尝试
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.30        # 适中置信度
+  iou_thres: 0.45
+  img_size: 1280
+
+reid:
+  model_type: "resnet50"
+  model_path: ""
+  feature_dim: 128
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.4
+  w_iou: 0.3
+  w_appearance: 0.5
+  w_motion: 0.2
+
+sahi:
+  enabled: true
+  slice_height: 768       # 中等切片
+  slice_width: 768
+  overlap_height_ratio: 0.15  # 中等重叠率

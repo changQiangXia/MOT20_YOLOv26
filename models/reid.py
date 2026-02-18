@@ -385,6 +385,7 @@ class FallbackReIDExtractor(FastReIDExtractor):
     """
     极速拉取、绝对不会网络超时的备用 ReID 特征提取器
     使用 PyTorch 官方 CDN 的 ResNet50 预训练权重
+    【修复】添加降维层，将 2048 维映射到目标维度（默认 128）
     """
     
     INPUT_SIZE = (128, 256)  # (宽, 高)
@@ -395,12 +396,12 @@ class FallbackReIDExtractor(FastReIDExtractor):
         self,
         model_path: str = None,  # 不需要路径
         device: str = "cuda:0",
-        feature_dim: int = 2048,  # ResNet50 输出维度
+        feature_dim: int = 128,  # 【修复】默认输出 128 维，与 DeepOCSORT 对齐
         batch_size: int = 64,
         half_precision: bool = True,
     ):
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
-        self.feature_dim = feature_dim
+        self.feature_dim = feature_dim  # 目标输出维度
         self.batch_size = batch_size
         self.half_precision = half_precision and self.device.type == "cuda"
         
@@ -408,7 +409,7 @@ class FallbackReIDExtractor(FastReIDExtractor):
         self._warmup()
     
     def _load_model(self):
-        """加载 PyTorch 官方 ResNet50"""
+        """加载 PyTorch 官方 ResNet50 并添加降维层"""
         print("🚀 [网络畅通保障] 正在从 PyTorch 官方 CDN 拉取 ResNet50 预训练权重...")
         
         try:
@@ -418,19 +419,29 @@ class FallbackReIDExtractor(FastReIDExtractor):
             print(f"  警告: 下载权重失败 {e}，使用默认权重")
             resnet = models.resnet50(pretrained=True)
         
-        # 砍掉最后的分类层，只保留特征提取
+        # 砍掉最后的分类层，只保留特征提取 (输出 2048 维)
         self.backbone = nn.Sequential(*list(resnet.children())[:-1])
         self.backbone = self.backbone.to(self.device)
         self.backbone.eval()
         
-        # 冻结所有参数
+        # ==================== 【关键修复：添加降维层】 ====================
+        # 将 ResNet50 的 2048 维输出降维到目标维度 (如 128)
+        self.reducer = nn.Linear(2048, self.feature_dim)
+        self.reducer = self.reducer.to(self.device)
+        self.reducer.eval()
+        # ================================================================
+        
+        # 冻结所有参数 (降维层也冻结，使用随机初始化的投影)
         for param in self.backbone.parameters():
+            param.requires_grad = False
+        for param in self.reducer.parameters():
             param.requires_grad = False
         
         if self.half_precision:
             self.backbone = self.backbone.half()
+            self.reducer = self.reducer.half()
         
-        print("✅ [成功] 备用 ReID (ResNet50-ImageNet) 加载完毕！彻底告别随机初始化！")
+        print(f"✅ [成功] 备用 ReID (ResNet50-ImageNet) 加载完毕！输出维度: {self.feature_dim}")
     
     def _warmup(self):
         """模型预热"""
@@ -470,7 +481,12 @@ class FallbackReIDExtractor(FastReIDExtractor):
         """提取单张图像特征"""
         tensor = self.preprocess(image)
         feature = self.backbone(tensor)
-        feature = feature.view(feature.size(0), -1)
+        feature = feature.view(feature.size(0), -1)  # (1, 2048)
+        
+        # ==================== 【关键修复：应用降维】 ====================
+        feature = self.reducer(feature)  # (1, feature_dim)
+        # ================================================================
+        
         feature = F.normalize(feature, p=2, dim=1)
         return feature.cpu().numpy().squeeze()
     
@@ -492,7 +508,12 @@ class FallbackReIDExtractor(FastReIDExtractor):
             
             batch_input = torch.cat(batch_tensors, dim=0)
             batch_features = self.backbone(batch_input)
-            batch_features = batch_features.view(batch_features.size(0), -1)
+            batch_features = batch_features.view(batch_features.size(0), -1)  # (B, 2048)
+            
+            # ==================== 【关键修复：应用降维】 ====================
+            batch_features = self.reducer(batch_features)  # (B, feature_dim)
+            # ================================================================
+            
             batch_features = F.normalize(batch_features, p=2, dim=1)
             
             features.append(batch_features.cpu().numpy())

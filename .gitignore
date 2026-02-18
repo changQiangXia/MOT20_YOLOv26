@@ -1,5 +1,7 @@
 # Data and weights (large files)
-data/
+data/MOT20/
+data/MOT20_YOLO/
+*.zip
 weights/*.pth
 weights/*.pt
 weights/*.bin

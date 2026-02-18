@@ -1,0 +1,27 @@
+# 最佳配置：禁用 SAHI + 优化检测阈值
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.30        # 略微提高，过滤低置信度误检
+  iou_thres: 0.45
+  img_size: 1920          # 提高分辨率，检测更多小目标
+
+reid:
+  model_type: "resnet50"
+  model_path: ""
+  feature_dim: 128
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.35   # 略微降低，增加外观匹配
+  w_iou: 0.3
+  w_appearance: 0.5
+  w_motion: 0.2
+
+sahi:
+  enabled: false

@@ -14,12 +14,11 @@ detector:
 
 # ========== ReID配置 ==========
 reid:
-  model_type: "osnet"        # 使用 OSNet 专门的行人ReID模型
-  model_path: "weights/osnet_x1_0_msmt17_combineall_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip_jitter.pth"
-  feature_dim: 512           # OSNet x1.0 输出512维特征  # ✓ 已下载
+  model_type: "resnet50"     # 【修复】使用 ResNet50 备用方案，输出 128 维对齐特征
+  model_path: ""             # 空路径触发 FallbackReIDExtractor
+  feature_dim: 128           # 【修复】统一为 128 维，与 DeepOCSORT 对齐
   device: "cuda:0"
-  feature_dim: 128
-  batch_size: 64          # 增大ReID批处理
+  batch_size: 64             # 增大ReID批处理
   half_precision: true
 
 # ========== 跟踪器配置 ==========
@@ -27,7 +26,7 @@ tracker:
   max_age: 30
   min_hits: 3
   iou_threshold: 0.3
-  appearance_threshold: 0.25
+  appearance_threshold: 0.4  # 【修复】放宽阈值，配合降维后的特征分布
   w_iou: 0.3
   w_appearance: 0.5
   w_motion: 0.2

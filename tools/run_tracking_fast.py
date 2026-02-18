@@ -94,15 +94,16 @@ class MOT20TrackerFast:
                 overlap_ratio=sahi_config.get('overlap_height_ratio', 0.2),
                 conf_thres=self.conf_thres,
                 iou_thres=self.iou_thres,
+                imgsz=self.img_size,  # 【修复】传递 imgsz 参数
             )
             print(f"批处理SAHI: {sahi_config.get('slice_height', 960)}x{sahi_config.get('slice_width', 960)}")
         else:
             print("SAHI: 已禁用")
     
     def detect(self, frame: np.ndarray) -> np.ndarray:
-        """检测单帧"""
+        """检测单帧并严格过滤行人 (class == 0)"""
         if self.use_sahi:
-            return self.sahi_engine.detect(frame)
+            detections = self.sahi_engine.detect(frame)
         else:
             # 直接检测
             results = self.model.predict(
@@ -114,12 +115,20 @@ class MOT20TrackerFast:
             )[0]
             
             if len(results.boxes) == 0:
-                return np.zeros((0, 6))
-            
-            boxes = results.boxes.xyxy.cpu().numpy()
-            confs = results.boxes.conf.cpu().numpy().reshape(-1, 1)
-            classes = results.boxes.cls.cpu().numpy().reshape(-1, 1)
-            return np.concatenate([boxes, confs, classes], axis=1)
+                detections = np.zeros((0, 6))
+            else:
+                boxes = results.boxes.xyxy.cpu().numpy()
+                confs = results.boxes.conf.cpu().numpy().reshape(-1, 1)
+                classes = results.boxes.cls.cpu().numpy().reshape(-1, 1)
+                detections = np.concatenate([boxes, confs, classes], axis=1)
+        
+        # ==================== 【关键修复：只要人 (class == 0) !】 ====================
+        if len(detections) > 0:
+            person_mask = detections[:, 5] == 0  # 第6列是类别ID，COCO中 0 是 person
+            detections = detections[person_mask]
+        # =============================================================================
+        
+        return detections
     
     def track(self, frame: np.ndarray) -> np.ndarray:
         """跟踪单帧"""

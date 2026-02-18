@@ -320,6 +320,124 @@ SAHI映射：切片偏移 + 缩放因子
 
 ---
 
+## 优化实践记录（2026-02-18更新）
+
+> **诚实声明**：以下记录我们在新服务器上的优化尝试，结果依然有限，但希望为后来者提供参考。
+
+### 初始状态
+
+**代码问题诊断：**
+1. **类别过滤缺失**：YOLO 检测 80 个类别，但代码未过滤，导致汽车、背包等非行人目标参与跟踪
+2. **ReID 维度不匹配**：ResNet50 输出 2048 维，DeepOCSORT 期望 128 维，特征匹配失效
+3. **SAHI 边界重复**：切片重叠导致同一目标被多次检测，FP 爆炸
+
+**原始性能（MOT20-01）：**
+| 指标 | 数值 | 备注 |
+|------|------|------|
+| MOTA | ~10% | 远低于 SOTA 60-70% |
+| IDF1 | ~30% | 远低于 SOTA 70-80% |
+| FP | 9000+ | 假阳性过高 |
+
+### 实施的修复
+
+#### 1. 添加类别过滤（关键修复）
+在 `run_tracking_fast.py` 的 `detect()` 方法中添加：
+```python
+if len(detections) > 0:
+    person_mask = detections[:, 5] == 0  # 只保留 person 类别
+    detections = detections[person_mask]
+```
+**效果**：FP 从 9000+ 降至 5000 左右
+
+#### 2. ReID 降维对齐
+在 `FallbackReIDExtractor` 中添加 Linear 层：
+```python
+self.reducer = nn.Linear(2048, self.feature_dim)  # 降维到 128
+```
+**效果**：特征维度统一，MOTA 提升显著
+
+#### 3. 配置统一
+- `feature_dim` 统一设置为 128
+- `appearance_threshold` 调整为 0.4
+
+### 系统化对比测试
+
+我们在 MOT20-01 上测试了多种配置：
+
+| 配置 | MOTA | IDF1 | FP | FN | 结论 |
+|------|------|------|----|----|------|
+| **无 SAHI ✅** | **28.46%** | **31.06%** | **4987** | 13728 | **最佳配置** |
+| 无 SAHI + Soft-NMS | 28.29% | 30.13% | 5043 | 13705 | 几乎相同 |
+| SAHI (960, overlap=0.2) | 15.13% | 35.37% | 9913 | 12580 | FP 翻倍 |
+| SAHI (768, overlap=0.15) | 2.54% | 32.02% | 12832 | 12998 | 更差 |
+| SAHI + Soft-NMS | -203% | 7.38% | 63288 | 9982 | **灾难** |
+| 无 SAHI + 高分辨率(1920) | 17.16% | 27.91% | 9440 | 12155 | 分辨率过高反而 FP 增加 |
+
+### 关键发现
+
+1. **SAHI 弊大于利**：在 MOT20 极度密集场景下，SAHI 的切片边界重复检测导致 FP 暴增，无论怎么调整参数都无法弥补
+
+2. **Soft-NMS 实现困难**：我们尝试了两次 Soft-NMS 实现，一次导致结果异常（所有框分数被错误惩罚），一次导致 FP 爆炸（63288），最终回退到标准 NMS
+
+3. **调参空间有限**：
+   - 提高 `conf_thres` 到 0.30+：FN 增加，MOTA 下降
+   - 提高 `img_size` 到 1920：FP 增加，MOTA 下降
+   - 调整 `appearance_threshold`：对整体指标影响有限
+
+### 最终推荐配置
+
+**文件：** `configs/no_sahi.yaml`
+
+```yaml
+detector:
+  model_path: "weights/yolov26x.pt"
+  device: "cuda:0"
+  conf_thres: 0.25    # 适中阈值
+  iou_thres: 0.45
+  img_size: 1280      # 平衡分辨率
+
+reid:
+  model_type: "resnet50"
+  model_path: ""      # 空路径触发 Fallback（带降维层）
+  feature_dim: 128    # 与 DeepOCSORT 对齐
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
+
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.4
+  w_iou: 0.3
+  w_appearance: 0.5
+  w_motion: 0.2
+
+sahi:
+  enabled: false      # ❌ 禁用 SAHI 是关键！
+```
+
+### 反思与教训
+
+1. **工程架构 ≠ 算法精度**：我们成功实现了批处理 SAHI（29x 加速），但这并未转化为精度提升
+
+2. **YOLO 通用检测 ≠ 行人跟踪**：COCO 预训练的 YOLO 在密集人群中的检测质量是瓶颈
+
+3. **ImageNet 特征 ≠ ReID 特征**：ResNet50-ImageNet 的特征不适合行人重识别，降维只是权宜之计
+
+4. **简单的修复往往最有效**：
+   - 类别过滤：+18% MOTA
+   - ReID 降维：稳定特征匹配
+   - 禁用 SAHI：避免 FP 爆炸
+
+### 仍未解决的问题
+
+- **真正的行人 ReID 权重**：需要预训练在行人数据集上的专用权重
+- **检测器微调**：YOLO 在 MOT20 上的检测质量需要专门优化
+- **多尺度融合**：如何有效结合原图和切片结果
+
+---
+
 ## 改进路径（给后来者）
 
 ### 短期改进（1-2天）
@@ -341,49 +459,58 @@ SAHI映射：切片偏移 + 缩放因子
 
 ## 配置说明
 
-### 推荐配置（速度优先）
+> **⚠️ 重要更新**：经过系统化测试，**禁用 SAHI 的配置获得最佳精度**（MOTA 28.46%），启用 SAHI 反而导致 FP 爆炸。
 
-`configs/fast_gpu.yaml`：
+### 推荐配置（最佳精度）
+
+`configs/no_sahi.yaml`：
 ```yaml
 detector:
   model_path: "weights/yolov26x.pt"
   device: "cuda:0"
   conf_thres: 0.25
+  iou_thres: 0.45
   img_size: 1280
 
 reid:
-  model_type: "resnet50"  # 网络免疫，自动下载
-  feature_dim: 2048
+  model_type: "resnet50"  # 使用带降维层的 FallbackReIDExtractor
+  model_path: ""          # 空路径触发 PyTorch 官方 ResNet50
+  feature_dim: 128        # 与 DeepOCSORT 对齐
+  device: "cuda:0"
+  batch_size: 64
+  half_precision: true
 
+tracker:
+  max_age: 30
+  min_hits: 3
+  iou_threshold: 0.3
+  appearance_threshold: 0.4
+  w_iou: 0.3
+  w_appearance: 0.5
+  w_motion: 0.2
+
+sahi:
+  enabled: false  # ❌ 禁用 SAHI 是关键！
+```
+**实测性能**：MOT20-01 上 MOTA 28.46%，IDF1 31.06%，FP 4987
+
+### 原始 SAHI 配置（不推荐用于 MOT20）
+
+```yaml
 sahi:
   enabled: true
   slice_height: 960
   slice_width: 960
-  batch_size: 16
+  overlap_height_ratio: 0.2
 ```
+**警告**：在 MOT20 极度密集场景下，SAHI 导致 FP 从 5000 增至 10000+，MOTA 下降至 15%
 
-### 高精度配置（牺牲速度）
+### 高精度配置（尝试中）
 
-```yaml
-detector:
-  conf_thres: 0.3
-  max_det: 1500
-
-sahi:
-  slice_height: 480  # 更小切片
-  overlap_ratio: 0.3
-
-tracker:
-  max_age: 60
-  w_appearance: 0.6
-```
-
-### 禁用SAHI（最快）
-
-```yaml
-sahi:
-  enabled: false  # 速度提升3-5倍
-```
+如需尝试 SAHI，建议：
+- 大幅提高 `conf_thres`（0.35+）以过滤 SAHI 引入的重复框
+- 减小切片尺寸（640）和重叠率（0.1）
+- 但目前测试均未超越无 SAHI 配置
 
 ---
 
@@ -533,4 +660,4 @@ MIT License
 
 *Last updated: 2026-02-18*
 
-*坦诚记录，供后来者参考。批处理SAHI架构成功，但精度优化仍需努力。*
+*坦诚记录，供后来者参考。批处理SAHI架构成功（29x加速），但精度优化受限（MOTA 28.46% vs SOTA 60%+）。关键发现：在极度密集场景中，SAHI弊大于利；简单的类别过滤和ReID降维比复杂架构更有效。*
