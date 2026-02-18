@@ -30,6 +30,13 @@ build/
 logs/*.log
 *.log
 
+# Evaluation results (generated files)
+eval_*.json
+results/
+
+# Test scripts
+test_all.sh
+
 # OS
 .DS_Store
 Thumbs.db

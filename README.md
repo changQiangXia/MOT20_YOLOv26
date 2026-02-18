@@ -26,8 +26,8 @@
 | **推理速度** | **0.085秒/帧** | 批处理SAHI，11.8 FPS |
 | **MOT20-01处理时间** | **1分43秒** | 429帧，较串行SAHI提升 **11倍** |
 | **显存利用** | 4-6GB / 24GB | 充分利用 RTX 4090 |
-| **MOTA** | ~10% | 详见"问题与反思"章节 |
-| **IDF1** | ~30% | 详见"问题与反思"章节 |
+| **MOTA** | **29.55%** | 优化后（原始~10%），详见"优化实践记录" |
+| **IDF1** | **31.76%** | 优化后（原始~30%），详见"优化实践记录" |
 
 ---
 
@@ -85,7 +85,9 @@ def detect_batch(self, images: List[np.ndarray]) -> List[np.ndarray]:
 ```
 MOT20_YOLOv26_Pipeline/
 ├── configs/                    # 配置文件
-│   ├── fast_gpu.yaml          # 批处理SAHI优化配置（推荐）
+│   ├── best_final.yaml        # 【推荐】最终优化配置 (MOTA 29.55%)
+│   ├── no_sahi.yaml           # 禁用SAHI配置 (MOTA 28.46%)
+│   ├── fast_gpu.yaml          # 批处理SAHI优化配置（速度优先）
 │   ├── default_tracking.yaml  # 默认配置
 │   ├── optimized.yaml         # 调参尝试（失败）
 │   └── high_precision.yaml    # 高精度配置
